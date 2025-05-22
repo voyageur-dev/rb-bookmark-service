@@ -123,7 +123,7 @@ func createBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2
 	}
 
 	examId := body["examId"].(string)
-	questionId := body["questionId"].(int)
+	questionId := int64(body["questionId"].(float64))
 
 	item := map[string]types.AttributeValue{
 		"user_id": &types.AttributeValueMemberS{Value: userId},
