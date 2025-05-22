@@ -123,12 +123,12 @@ func createBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2
 	}
 
 	examId := body["examId"].(string)
-	questionId := body["questionId"].(string)
+	questionId := body["questionId"].(float64)
 
 	item := map[string]types.AttributeValue{
 		"user_id": &types.AttributeValueMemberS{Value: userId},
 		"exam_question_key": &types.AttributeValueMemberS{
-			Value: fmt.Sprintf("%s#%s", examId, questionId),
+			Value: fmt.Sprintf("%s#%d", examId, questionId),
 		},
 		"created_at": &types.AttributeValueMemberS{
 			Value: time.Now().UTC().Format(time.RFC3339),
