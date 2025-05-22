@@ -16,10 +16,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
-	getBookMarksPath = "GET /rb/bookmarks"
+	getBookMarksPath   = "GET /rb/bookmarks"
+	createBookmarkPath = "POST /rb/bookmarks"
+	deleteBookmarkPath = "DELETE /rb/bookmarks/{examId}/{questionId}"
 )
 
 var bookmarksTableName string
@@ -37,13 +40,17 @@ func init() {
 	dbClient = dynamodb.NewFromConfig(cfg)
 }
 
-func handler(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+func handler(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	path := request.RouteKey
 
 	return func() (events.APIGatewayV2HTTPResponse, error) {
 		switch path {
 		case getBookMarksPath:
-			return getBookmarks(ctx, request)
+			return getBookmarks(request)
+		case createBookmarkPath:
+			return createBookmark(request)
+		case deleteBookmarkPath:
+			return deleteBookmark(request)
 		default:
 			return events.APIGatewayV2HTTPResponse{
 				Body:       "Path Not Found",
@@ -53,7 +60,7 @@ func handler(ctx context.Context, request events.APIGatewayV2HTTPRequest) (event
 	}()
 }
 
-func getBookmarks(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+func getBookmarks(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	queryParams := request.QueryStringParameters
 	examId, ext := queryParams["examId"]
 
@@ -72,7 +79,7 @@ func getBookmarks(ctx context.Context, request events.APIGatewayV2HTTPRequest) (
 		ExpressionAttributeValues: expr.Values(),
 	}
 
-	result, err := dbClient.Query(ctx, input)
+	result, err := dbClient.Query(context.TODO(), input)
 	if err != nil {
 		log.Println(fmt.Sprintf("Error getting bookmarks for %s, %v", userId, err))
 		return events.APIGatewayV2HTTPResponse{
@@ -98,6 +105,81 @@ func getBookmarks(ctx context.Context, request events.APIGatewayV2HTTPRequest) (
 
 	return events.APIGatewayV2HTTPResponse{
 		Body:       string(response),
+		StatusCode: 200,
+	}, nil
+}
+
+func createBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	userId, _ := request.RequestContext.Authorizer.JWT.Claims["sub"]
+
+	body := make(map[string]interface{})
+	err := json.Unmarshal([]byte(request.Body), &body)
+	if err != nil {
+		log.Println(fmt.Sprintf("Error creating bookmark for %s, %v", userId, err))
+		return events.APIGatewayV2HTTPResponse{
+			Body:       "Error creating bookmark",
+			StatusCode: 400,
+		}, nil
+	}
+
+	examId := body["examId"].(string)
+	questionId := body["questionId"].(string)
+
+	item := map[string]types.AttributeValue{
+		"user_id": &types.AttributeValueMemberS{Value: userId},
+		"exam_question_key": &types.AttributeValueMemberS{
+			Value: fmt.Sprintf("%s#%s", examId, questionId),
+		},
+		"created_at": &types.AttributeValueMemberS{
+			Value: time.Now().UTC().Format(time.RFC3339),
+		},
+	}
+
+	_, err = dbClient.PutItem(context.TODO(), &dynamodb.PutItemInput{
+		TableName: aws.String(bookmarksTableName),
+		Item:      item,
+	})
+
+	if err != nil {
+		log.Println(fmt.Sprintf("Error creating bookmark for %s, %v", userId, err))
+		return events.APIGatewayV2HTTPResponse{
+			Body:       "Error creating bookmark",
+			StatusCode: 500,
+		}, nil
+	}
+
+	return events.APIGatewayV2HTTPResponse{
+		StatusCode: 201,
+	}, nil
+}
+
+func deleteBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	userId, _ := request.RequestContext.Authorizer.JWT.Claims["sub"]
+
+	examId := request.PathParameters["examId"]
+	questionId := request.PathParameters["questionId"]
+
+	key := map[string]types.AttributeValue{
+		"user_id": &types.AttributeValueMemberS{Value: userId},
+		"exam_question_key": &types.AttributeValueMemberS{
+			Value: fmt.Sprintf("%s#%s", examId, questionId),
+		},
+	}
+
+	_, err := dbClient.DeleteItem(context.TODO(), &dynamodb.DeleteItemInput{
+		TableName: aws.String(bookmarksTableName),
+		Key:       key,
+	})
+
+	if err != nil {
+		log.Println(fmt.Sprintf("Error deleting bookmark for %s, %v", userId, err))
+		return events.APIGatewayV2HTTPResponse{
+			Body:       "Error deleting bookmark",
+			StatusCode: 500,
+		}, nil
+	}
+
+	return events.APIGatewayV2HTTPResponse{
 		StatusCode: 200,
 	}, nil
 }
