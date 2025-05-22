@@ -79,4 +79,4 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }} \
             --s3-bucket ${{ vars.CODEBASE_BUCKET }}-${{ needs.set-environment.outputs.environment }} \
-            --s3-key ${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }}.jar
+            --s3-key ${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }}.zip
