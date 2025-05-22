@@ -53,11 +53,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.3'
+
       - name: Install dependencies
         run: go mod tidy
 
       - name: Build the Go binary
-        run: GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
+        run: GOOS=linux GOARCH=arm64 go build -o bootstrap main.go
 
       - name: Zip the binary
         run: zip function.zip bootstrap
