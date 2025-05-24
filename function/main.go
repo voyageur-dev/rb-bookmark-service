@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -25,9 +26,11 @@ const (
 	deleteBookmarkPath = "DELETE /rb/bookmarks/{examId}/{questionId}"
 )
 
-var bookmarksTableName string
+var (
+	bookmarksTableName string
 
-var dbClient *dynamodb.Client
+	dbClient *dynamodb.Client
+)
 
 func init() {
 	bookmarksTableName = os.Getenv("BOOKMARKS_TABLE_NAME")
@@ -54,7 +57,7 @@ func handler(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPRes
 		default:
 			return events.APIGatewayV2HTTPResponse{
 				Body:       "Path Not Found",
-				StatusCode: 404,
+				StatusCode: http.StatusNotFound,
 			}, nil
 		}
 	}()
@@ -84,7 +87,7 @@ func getBookmarks(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HT
 		log.Println(fmt.Sprintf("Error getting bookmarks for %s, %v", userId, err))
 		return events.APIGatewayV2HTTPResponse{
 			Body:       "Error getting bookmarks",
-			StatusCode: 500,
+			StatusCode: http.StatusInternalServerError,
 		}, nil
 	}
 
@@ -105,7 +108,7 @@ func getBookmarks(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HT
 
 	return events.APIGatewayV2HTTPResponse{
 		Body:       string(response),
-		StatusCode: 200,
+		StatusCode: http.StatusOK,
 	}, nil
 }
 
@@ -118,7 +121,7 @@ func createBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2
 		log.Println(fmt.Sprintf("Error creating bookmark for %s, %v", userId, err))
 		return events.APIGatewayV2HTTPResponse{
 			Body:       "Error creating bookmark",
-			StatusCode: 400,
+			StatusCode: http.StatusBadRequest,
 		}, nil
 	}
 
@@ -144,12 +147,12 @@ func createBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2
 		log.Println(fmt.Sprintf("Error creating bookmark for %s, %v", userId, err))
 		return events.APIGatewayV2HTTPResponse{
 			Body:       "Error creating bookmark",
-			StatusCode: 500,
+			StatusCode: http.StatusInternalServerError,
 		}, nil
 	}
 
 	return events.APIGatewayV2HTTPResponse{
-		StatusCode: 201,
+		StatusCode: http.StatusCreated,
 	}, nil
 }
 
@@ -175,12 +178,12 @@ func deleteBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2
 		log.Println(fmt.Sprintf("Error deleting bookmark for %s, %v", userId, err))
 		return events.APIGatewayV2HTTPResponse{
 			Body:       "Error deleting bookmark",
-			StatusCode: 500,
+			StatusCode: http.StatusInternalServerError,
 		}, nil
 	}
 
 	return events.APIGatewayV2HTTPResponse{
-		StatusCode: 200,
+		StatusCode: http.StatusOK,
 	}, nil
 }
 
