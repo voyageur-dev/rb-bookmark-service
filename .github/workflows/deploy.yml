@@ -53,14 +53,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.3'
+
       - name: Install dependencies
         run: go mod tidy
 
       - name: Build the Go binary
-        run: GOOS=linux GOARCH=amd64 go build -o main main.go
+        run: GOOS=linux GOARCH=arm64 go build -o bootstrap main.go
 
       - name: Zip the binary
-        run: zip function.zip main
+        run: zip function.zip bootstrap
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -70,7 +75,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Upload to S3
-        run: aws s3 cp function.zip s3://${{ vars.CODEBASE_BUCKET }}-${{ needs.set-environment.outputs.environment }}/${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }}.jar
+        run: aws s3 cp function.zip s3://${{ vars.CODEBASE_BUCKET }}-${{ needs.set-environment.outputs.environment }}/${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }}.zip
 
       - name: Deploy to lambda
         id: deploy-lambda
@@ -79,4 +84,4 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }} \
             --s3-bucket ${{ vars.CODEBASE_BUCKET }}-${{ needs.set-environment.outputs.environment }} \
-            --s3-key ${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }}.jar
+            --s3-key ${{needs.set-environment.outputs.repo}}-${{ needs.set-environment.outputs.environment }}.zip
