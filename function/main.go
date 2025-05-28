@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"function/models"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -102,9 +101,7 @@ func getBookmarks(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HT
 		bookmarks[parts[0]] = append(bookmarks[parts[0]], idx)
 	}
 
-	response, _ := json.Marshal(models.GetBookmarksResponse{
-		Bookmarks: bookmarks,
-	})
+	response, _ := json.Marshal(bookmarks)
 
 	return events.APIGatewayV2HTTPResponse{
 		Body:       string(response),
