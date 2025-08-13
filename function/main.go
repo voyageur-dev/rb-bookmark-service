@@ -4,6 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,12 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"log"
-	"net/http"
-	"os"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const (
@@ -64,13 +64,14 @@ func handler(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPRes
 
 func getBookmarks(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	queryParams := request.QueryStringParameters
-	examId, ext := queryParams["examId"]
+	providerId, providerIdExt := queryParams["providerId"]
+	examId, examIdExt := queryParams["examId"]
 
 	userId, _ := request.RequestContext.Authorizer.JWT.Claims["sub"]
 
-	builder := expression.Key("user_id").Equal(expression.Value(userId))
-	if ext {
-		builder = builder.And(expression.Key("exam_question_key").BeginsWith(examId))
+	builder := expression.Key("userId").Equal(expression.Value(userId))
+	if providerIdExt && examIdExt {
+		builder = builder.And(expression.Key("providerExamQuestionKey").BeginsWith(fmt.Sprintf("%s#%s", providerId, examId)))
 	}
 	expr, _ := expression.NewBuilder().WithKeyCondition(builder).Build()
 
@@ -90,15 +91,14 @@ func getBookmarks(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HT
 		}, nil
 	}
 
-	bookmarks := make(map[string][]int)
+	bookmarks := make(map[string]map[string][]string)
 	for _, item := range result.Items {
-		parts := strings.Split(item["exam_question_key"].(*types.AttributeValueMemberS).Value, "#")
-		idx, err := strconv.Atoi(parts[1])
-		if err != nil {
-			continue
-		}
+		parts := strings.Split(item["providerExamQuestionKey"].(*types.AttributeValueMemberS).Value, "#")
 
-		bookmarks[parts[0]] = append(bookmarks[parts[0]], idx)
+		if _, ok := bookmarks[parts[0]]; !ok {
+			bookmarks[parts[0]] = make(map[string][]string)
+		}
+		bookmarks[parts[0]][parts[1]] = append(bookmarks[parts[0]][parts[1]], parts[2])
 	}
 
 	response, _ := json.Marshal(bookmarks)
@@ -122,15 +122,16 @@ func createBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2
 		}, nil
 	}
 
+	providerId := body["providerId"].(string)
 	examId := body["examId"].(string)
-	questionId := int64(body["questionId"].(float64))
+	questionId := body["questionId"].(string)
 
 	item := map[string]types.AttributeValue{
-		"user_id": &types.AttributeValueMemberS{Value: userId},
-		"exam_question_key": &types.AttributeValueMemberS{
-			Value: fmt.Sprintf("%s#%d", examId, questionId),
+		"userId": &types.AttributeValueMemberS{Value: userId},
+		"providerExamQuestionKey": &types.AttributeValueMemberS{
+			Value: fmt.Sprintf("%s#%s#%s", providerId, examId, questionId),
 		},
-		"created_at": &types.AttributeValueMemberS{
+		"createdAt": &types.AttributeValueMemberS{
 			Value: time.Now().UTC().Format(time.RFC3339),
 		},
 	}
@@ -156,13 +157,14 @@ func createBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2
 func deleteBookmark(request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	userId, _ := request.RequestContext.Authorizer.JWT.Claims["sub"]
 
+	providerId := request.PathParameters["providerId"]
 	examId := request.PathParameters["examId"]
 	questionId := request.PathParameters["questionId"]
 
 	key := map[string]types.AttributeValue{
-		"user_id": &types.AttributeValueMemberS{Value: userId},
-		"exam_question_key": &types.AttributeValueMemberS{
-			Value: fmt.Sprintf("%s#%s", examId, questionId),
+		"userId": &types.AttributeValueMemberS{Value: userId},
+		"providerExamQuestionKey": &types.AttributeValueMemberS{
+			Value: fmt.Sprintf("%s#%s#%s", providerId, examId, questionId),
 		},
 	}
 
