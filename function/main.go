@@ -22,7 +22,7 @@ import (
 const (
 	getBookMarksPath   = "GET /rb/bookmarks"
 	createBookmarkPath = "POST /rb/bookmarks"
-	deleteBookmarkPath = "DELETE /rb/bookmarks/{examId}/{questionId}"
+	deleteBookmarkPath = "DELETE /rb/bookmarks/{providerId}/{examId}/{questionId}"
 )
 
 var (
